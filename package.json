@@ -1,0 +1,26 @@
+{
+  "name": "somosguaches-backend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/www",
+    "seed": "node ./scripts/seed.js",
+    "seed:dry-run": "node ./scripts/seed.js --dry-run",
+    "test": "node --test --test-concurrency=1",
+    "test:routes": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "dependencies": {
+    "@ffprobe-installer/ffprobe": "^2.1.2",
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "~1.4.4",
+    "cors": "^2.8.5",
+    "debug": "~2.6.9",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.16.3",
+    "morgan": "~1.9.1",
+    "multer": "^2.2.0",
+    "zod": "^4.4.3"
+  }
+}
