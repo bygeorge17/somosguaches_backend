@@ -1,0 +1,41 @@
+# Dependencias y cache de Node.js
+node_modules/
+.npm/
+.cache/
+
+# Variables de entorno locales (conservar la plantilla)
+.env
+.env.*
+!.env.example
+
+# Claves SSH locales del proyecto
+/somosguaches
+/somosguaches.pub
+
+# Archivos subidos por los usuarios
+/public/uploads/
+
+# Logs y archivos de diagnostico
+logs/
+*.log
+report.*.json
+
+# Cobertura y resultados de compilacion
+coverage/
+.nyc_output/
+/dist/
+/build/
+
+# Archivos temporales
+/tmp/
+/temp/
+*.tmp
+*.swp
+*.swo
+
+# Archivos locales del sistema y editores
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
