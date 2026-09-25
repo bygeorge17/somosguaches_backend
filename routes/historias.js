@@ -4,6 +4,7 @@ const { validateBody } = require('../middleware/validateBody');
 const Historia = require('../models/Historia');
 const { historiaCreate, historiaUpdate } = require('../validation/schemas');
 const router = express.Router();
+const { mapEngagement, optionalUserId, populateComments, registerContentEngagement } = require('./contentEngagement');
 
 function normalizeTags(tags) {
   if (!Array.isArray(tags)) return [];
@@ -68,7 +69,7 @@ function buildHistoriaUpdate(body) {
   return update;
 }
 
-function mapHistoria(historia) {
+function mapHistoria(historia, currentUserId = null, includeComments = false) {
   return {
     id: historia._id,
     title: historia.title,
@@ -80,8 +81,7 @@ function mapHistoria(historia) {
     publishedAt: historia.publishedAt,
     readMinutes: historia.readMinutes || 3,
     tags: historia.tags || [],
-    avgStars: historia.avgStars || 0,
-    commentsCount: historia.commentsCount || 0,
+    ...mapEngagement(historia, currentUserId, { includeComments }),
     isFeatured: historia.isFeatured,
     createdAt: historia.createdAt,
     updatedAt: historia.updatedAt,
@@ -110,7 +110,8 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Historia no encontrada' });
     }
 
-    res.json(mapHistoria(historia));
+    await populateComments(historia);
+    res.json(mapHistoria(historia, optionalUserId(req), true));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -206,6 +207,12 @@ router.delete('/:id', adminAuthorization, async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+registerContentEngagement(router, {
+  Model: Historia,
+  mapResource: mapHistoria,
+  label: 'Historia',
 });
 
 module.exports = router;

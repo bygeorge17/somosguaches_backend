@@ -7,6 +7,7 @@ const {
   personajeUpdate,
 } = require('../validation/schemas');
 const router = express.Router();
+const { mapEngagement, optionalUserId, populateComments, registerContentEngagement } = require('./contentEngagement');
 
 function normalizeTags(tags) {
   if (!Array.isArray(tags)) return [];
@@ -62,7 +63,7 @@ function buildPersonajeUpdate(body) {
   return update;
 }
 
-function mapPersonaje(personaje) {
+function mapPersonaje(personaje, currentUserId = null, includeComments = false) {
   return {
     id: personaje._id,
     name: personaje.name,
@@ -71,9 +72,7 @@ function mapPersonaje(personaje) {
     imageUrl: personaje.imageUrl || '',
     avatarUrl: personaje.avatarUrl || '',
     categories: personaje.categories || [],
-    avgStars: personaje.avgStars || 0,
-    ratingsCount: personaje.ratingsCount || 0,
-    commentsCount: personaje.commentsCount || 0,
+    ...mapEngagement(personaje, currentUserId, { includeComments }),
     isFeatured: personaje.isFeatured,
     createdAt: personaje.createdAt,
     updatedAt: personaje.updatedAt,
@@ -101,7 +100,8 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Personaje no encontrado' });
     }
 
-    res.json(mapPersonaje(personaje));
+    await populateComments(personaje);
+    res.json(mapPersonaje(personaje, optionalUserId(req), true));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -192,6 +192,12 @@ router.delete('/:id', adminAuthorization, async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+registerContentEngagement(router, {
+  Model: Personaje,
+  mapResource: mapPersonaje,
+  label: 'Personaje',
 });
 
 module.exports = router;

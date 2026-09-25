@@ -4,6 +4,7 @@ const { validateBody } = require('../middleware/validateBody');
 const Leyenda = require('../models/Leyenda');
 const { leyendaCreate, leyendaUpdate } = require('../validation/schemas');
 const router = express.Router();
+const { mapEngagement, optionalUserId, populateComments, registerContentEngagement } = require('./contentEngagement');
 
 function normalizeTags(tags) {
   if (!Array.isArray(tags)) return [];
@@ -66,7 +67,7 @@ function buildLeyendaUpdate(body) {
   return update;
 }
 
-function mapLeyenda(leyenda) {
+function mapLeyenda(leyenda, currentUserId = null, includeComments = false) {
   return {
     id: leyenda._id,
     title: leyenda.title,
@@ -78,8 +79,7 @@ function mapLeyenda(leyenda) {
     location: leyenda.location || '',
     era: leyenda.era || '',
     tags: leyenda.tags || [],
-    avgStars: leyenda.avgStars || 0,
-    commentsCount: leyenda.commentsCount || 0,
+    ...mapEngagement(leyenda, currentUserId, { includeComments }),
     mysteryLevel: leyenda.mysteryLevel || 3,
     isFeatured: leyenda.isFeatured,
     createdAt: leyenda.createdAt,
@@ -108,7 +108,8 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Leyenda no encontrada' });
     }
 
-    res.json(mapLeyenda(leyenda));
+    await populateComments(leyenda);
+    res.json(mapLeyenda(leyenda, optionalUserId(req), true));
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -206,6 +207,12 @@ router.delete('/:id', adminAuthorization, async (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
+});
+
+registerContentEngagement(router, {
+  Model: Leyenda,
+  mapResource: mapLeyenda,
+  label: 'Leyenda',
 });
 
 module.exports = router;

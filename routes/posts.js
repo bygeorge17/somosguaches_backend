@@ -70,11 +70,12 @@ const upload = multer({
 });
 
 function publicUser(user) {
-  if (!user) return { id: '', name: 'Guache', avatar: '' };
+  if (!user) return { id: '', name: 'Guache', avatar: '', accountType: 'personal' };
   return {
     id: resourceUserId(user),
     name: user.name || 'Guache',
     avatar: user.avatar || '',
+    accountType: user.accountType || 'personal',
   };
 }
 
@@ -408,7 +409,7 @@ function canDeleteComment(comment, user) {
 
 async function findPost(id) {
   return Post.findById(id)
-    .populate('author', 'name avatar')
+    .populate('author', 'name avatar accountType')
     .populate('community', 'name')
     .populate('comments.author', 'name avatar');
 }
@@ -441,7 +442,7 @@ router.get('/', async (req, res) => {
     }
 
     const posts = await query
-      .populate('author', 'name avatar')
+      .populate('author', 'name avatar accountType')
       .populate('community', 'name')
       .populate('comments.author', 'name avatar');
 

@@ -22,6 +22,9 @@ function serializeUser(user, options = {}) {
     avatar: user.avatar || '',
     role,
     isAdmin: role === 'admin',
+    accountType: user.accountType || 'personal',
+    isOfficial: ['official', 'automated'].includes(user.accountType),
+    isAutomated: user.accountType === 'automated',
     followersCount: followers.length,
     followingCount: (user.following || []).length,
     isFollowing: currentUserId

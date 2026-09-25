@@ -49,6 +49,13 @@ const adminCreateUser = register.extend({
   role: role.optional(),
 }).strict();
 
+const officialAccountCreate = z.object({
+  name: requiredString(50, 'El nombre es obligatorio'),
+  bio: optionalString(160),
+  avatar: urlOrPath.optional(),
+  accountType: z.enum(['official', 'automated']).default('official'),
+}).strict();
+
 const profileUpdate = strictUpdate({
   name: requiredString(50, 'El nombre es obligatorio').optional(),
   bio: optionalString(160),
@@ -205,6 +212,7 @@ const rating = z.object({ stars: z.number().int().min(1).max(5) }).strict();
 
 module.exports = {
   adminCreateUser,
+  officialAccountCreate,
   comment,
   communityCreate,
   communityUpdate,

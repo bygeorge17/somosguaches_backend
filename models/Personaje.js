@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { commentSchema, ratingSchema } = require('./contentEngagement');
 
 const personajeSchema = new mongoose.Schema({
   name: {
@@ -50,6 +51,8 @@ const personajeSchema = new mongoose.Schema({
     min: 0,
     default: 0,
   },
+  comments: [commentSchema],
+  ratings: [ratingSchema],
   isFeatured: {
     type: Boolean,
     default: false,

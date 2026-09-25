@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('../middleware/auth');
 const adminAuthorization = require('../middleware/adminAuthorization');
@@ -8,6 +9,7 @@ const { JWT_SECRET } = require('../config/env');
 const { serializeUser } = require('../utils/user');
 const {
   adminCreateUser,
+  officialAccountCreate,
   profileUpdate,
   roleUpdate,
 } = require('../validation/schemas');
@@ -91,6 +93,42 @@ router.post('/', adminAuthorization, validateBody(adminCreateUser), async (req, 
     res.status(400).json({ error: error.message });
   }
 });
+
+router.get('/official', adminAuthorization, async (_req, res) => {
+  try {
+    const users = await User.find({
+      accountType: { $in: ['official', 'automated'] },
+    }).sort({ createdAt: -1 });
+    res.json(users.map((user) => serializeUser(user)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post(
+  '/official',
+  adminAuthorization,
+  validateBody(officialAccountCreate),
+  async (req, res) => {
+    try {
+      const accountType = req.body.accountType || 'official';
+      const identity = crypto.randomUUID();
+      const user = new User({
+        name: req.body.name,
+        bio: req.body.bio || '',
+        avatar: req.body.avatar || '',
+        accountType,
+        role: 'user',
+        email: `official+${identity}@somosguaches.internal`,
+        password: crypto.randomBytes(32).toString('base64url'),
+      });
+      await user.save();
+      res.status(201).json({ user: serializeUser(user) });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+);
 
 router.get('/', async (req, res) => {
   try {

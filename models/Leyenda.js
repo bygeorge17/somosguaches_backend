@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { commentSchema, ratingSchema } = require('./contentEngagement');
 
 const leyendaSchema = new mongoose.Schema({
   title: {
@@ -59,11 +60,18 @@ const leyendaSchema = new mongoose.Schema({
     max: 5,
     default: 0,
   },
+  ratingsCount: {
+    type: Number,
+    min: 0,
+    default: 0,
+  },
   commentsCount: {
     type: Number,
     min: 0,
     default: 0,
   },
+  comments: [commentSchema],
+  ratings: [ratingSchema],
   mysteryLevel: {
     type: Number,
     min: 1,

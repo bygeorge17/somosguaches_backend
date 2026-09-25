@@ -172,6 +172,49 @@ test('admin puede asignar rol y se sincroniza isAdmin', async () => {
   }
 });
 
+test('admin crea una cuenta oficial sin exponer credenciales internas', async () => {
+  const adminId = '507f1f77bcf86cd799439011';
+  let savedUser;
+  const restoreFind = replaceMethod(User, 'findById', () => ({
+    select: async () => serializedUser(adminId, { role: 'admin', isAdmin: true }),
+  }));
+  const restoreSave = replaceMethod(User.prototype, 'save', async function save() {
+    savedUser = this;
+    return this;
+  });
+
+  try {
+    await withServer(testApp(), async (baseUrl) => {
+      const { response, body } = await readJson(await fetch(
+        `${baseUrl}/users/official`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token(adminId, true)}`,
+          },
+          body: JSON.stringify({
+            name: 'Somos Guaches Historias',
+            bio: 'Memoria regional',
+            accountType: 'automated',
+          }),
+        },
+      ));
+
+      assert.equal(response.status, 201);
+      assert.equal(savedUser.accountType, 'automated');
+      assert.match(savedUser.email, /^official\+.+@somosguaches\.internal$/);
+      assert.equal(body.user.accountType, 'automated');
+      assert.equal(body.user.isOfficial, true);
+      assert.equal(body.user.isAutomated, true);
+      assert.equal(body.user.email, undefined);
+    });
+  } finally {
+    restoreSave();
+    restoreFind();
+  }
+});
+
 test('seguir y dejar de seguir actualiza ambos usuarios', async () => {
   const currentId = '507f1f77bcf86cd799439011';
   const targetId = '507f191e810c19729de860ea';

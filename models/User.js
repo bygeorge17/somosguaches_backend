@@ -56,6 +56,11 @@ const userSchema = new mongoose.Schema({
     default: function defaultRole() {
       return this.isAdmin === true ? 'admin' : 'user';
     },
+  },
+  accountType: {
+    type: String,
+    enum: ['personal', 'official', 'automated'],
+    default: 'personal',
   }
 }, {
   timestamps: true // agrega createdAt y updatedAt automáticamente
