@@ -35,8 +35,6 @@ const IMAGE_MIME_BY_EXTENSION = {
 };
 const VIDEO_MIME_BY_EXTENSION = {
   '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-  '.mov': 'video/quicktime',
 };
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -203,7 +201,7 @@ function popularityScore(post) {
   return (post.ratings?.length || 0) * 2 + (post.comments?.length || 0);
 }
 
-async function resolveCommunityId(value) {
+async function resolveCommunityId(value, userId) {
   if (value === undefined) return undefined;
   if (value === null || String(value).trim() === '') return null;
 
@@ -211,8 +209,15 @@ async function resolveCommunityId(value) {
   if (!mongoose.isValidObjectId(communityId)) {
     throw new Error('El identificador de comunidad no es válido');
   }
-  if (!await Community.exists({ _id: communityId })) {
+  const community = await Community.findById(communityId).select('members');
+  if (!community) {
     throw new Error('Comunidad no encontrada');
+  }
+  const isMember = (community.members || []).some(
+    (member) => member.toString() === userId,
+  );
+  if (!isMember) {
+    throw new Error('Debes unirte a la comunidad antes de publicar ahi');
   }
   return communityId;
 }
@@ -565,6 +570,7 @@ router.post('/', authMiddleware, validateBody(postCreate), async (req, res) => {
     const normalizedMediaUrl = normalizePostMediaUrl(type, mediaUrl);
     const normalizedCommunityId = await resolveCommunityId(
       communityId !== undefined ? communityId : community,
+      req.user.id,
     );
 
     const post = new Post({
@@ -622,7 +628,7 @@ router.put('/:id', authMiddleware, validateBody(postUpdate), async (req, res) =>
 
     const requestedCommunity = communityId !== undefined ? communityId : community;
     if (requestedCommunity !== undefined) {
-      post.community = await resolveCommunityId(requestedCommunity);
+      post.community = await resolveCommunityId(requestedCommunity, req.user.id);
     }
     if (tags !== undefined) {
       post.tags = normalizeTags(tags);

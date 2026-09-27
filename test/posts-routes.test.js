@@ -1,8 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const postsRouter = require('../routes/posts');
 const Post = require('../models/Post');
+const { JWT_SECRET } = require('../config/env');
 const { readJson, replaceMethod, withServer } = require('../test-support/http');
 
 function testApp() {
@@ -10,6 +12,10 @@ function testApp() {
   app.use(express.json());
   app.use('/posts', postsRouter);
   return app;
+}
+
+function token() {
+  return jwt.sign({ id: '507f1f77bcf86cd799439011' }, JWT_SECRET);
 }
 
 test('busqueda combina texto, comunidad, etiquetas, fecha y popularidad', async () => {
@@ -154,4 +160,25 @@ test('filtros invalidos responden 400 antes de consultar Mongo', async () => {
   } finally {
     restore();
   }
+});
+
+test('la subida de video de usuario exige MP4 compatible', async () => {
+  await withServer(testApp(), async (baseUrl) => {
+    const form = new FormData();
+    form.append('type', 'video');
+    form.append(
+      'media',
+      new Blob([Buffer.from('video-de-prueba')], { type: 'video/webm' }),
+      'clip.webm',
+    );
+
+    const { response, body } = await readJson(await fetch(`${baseUrl}/posts/media`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token()}` },
+      body: form,
+    }));
+
+    assert.equal(response.status, 400);
+    assert.match(body.error, /Tipo de archivo no permitido/);
+  });
 });

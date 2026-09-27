@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const Community = require('../models/Community');
 const Post = require('../models/Post');
 const router = require('../routes/posts');
 const { postCreate, postUpdate } = require('../validation/schemas');
@@ -16,6 +17,49 @@ test('imagen sin texto pasa schema y modelo; texto y video lo requieren', () => 
   assert.equal(postUpdate.parse({ text: '' }).text, '');
   for (const type of ['text', 'video']) {
     assert.ok(new Post({ author, type, text: '' }).validateSync().errors.text);
+  }
+});
+
+test('crear post en comunidad exige membresia', async () => {
+  const communityId = '507f1f77bcf86cd799439012';
+  let saved = false;
+  const restoreSave = replaceMethod(Post.prototype, 'save', async function () {
+    saved = true;
+    return this;
+  });
+  const restoreCommunity = replaceMethod(Community, 'findById', () => ({
+    select() {
+      return Promise.resolve({
+        _id: communityId,
+        members: ['507f1f77bcf86cd799439013'],
+      });
+    },
+  }));
+
+  try {
+    const handler = router.stack.find(entry =>
+      entry.route?.path === '/' && entry.route.methods.post).route.stack.at(-1).handle;
+    const response = {
+      statusCode: 200,
+      status(code) { this.statusCode = code; return this; },
+      json(body) { this.body = body; return this; },
+    };
+
+    await handler({
+      body: postCreate.parse({
+        type: 'text',
+        text: 'Anuncio comunitario',
+        communityId,
+      }),
+      user: { id: author },
+    }, response);
+
+    assert.equal(response.statusCode, 400);
+    assert.match(response.body.error, /unirte a la comunidad/);
+    assert.equal(saved, false);
+  } finally {
+    restoreSave();
+    restoreCommunity();
   }
 });
 

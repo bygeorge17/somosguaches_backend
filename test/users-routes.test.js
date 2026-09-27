@@ -3,6 +3,13 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const usersRouter = require('../routes/users');
+const Community = require('../models/Community');
+const CommunityDirectoryEntry = require('../models/CommunityDirectoryEntry');
+const CommunitySuggestion = require('../models/CommunitySuggestion');
+const Historia = require('../models/Historia');
+const Leyenda = require('../models/Leyenda');
+const Personaje = require('../models/Personaje');
+const Post = require('../models/Post');
 const User = require('../models/User');
 const { JWT_SECRET } = require('../config/env');
 const { readJson, replaceMethod, withServer } = require('../test-support/http');
@@ -23,8 +30,14 @@ function serializedUser(id, overrides = {}) {
     _id: id,
     email: 'user@example.com',
     name: 'Usuario',
+    username: '',
+    origin: '',
+    currentLocation: '',
     bio: '',
+    occupation: '',
     avatar: '',
+    points: 0,
+    level: 1,
     role: 'user',
     isAdmin: false,
     isActive: true,
@@ -40,6 +53,12 @@ test('perfil propio devuelve datos privados y métricas', async () => {
     userId,
     {
       bio: 'Cronista calentano',
+      username: 'cronista',
+      origin: 'Cutzamala',
+      currentLocation: 'Altamirano',
+      occupation: 'Narrador',
+      points: 90,
+      level: 2,
       followers: ['507f191e810c19729de860ea'],
       following: ['507f191e810c19729de860eb'],
       createdAt: new Date('2026-01-15T00:00:00.000Z'),
@@ -58,6 +77,12 @@ test('perfil propio devuelve datos privados y métricas', async () => {
       assert.equal(response.status, 200);
       assert.equal(body.user.email, 'user@example.com');
       assert.equal(body.user.bio, 'Cronista calentano');
+      assert.equal(body.user.username, 'cronista');
+      assert.equal(body.user.origin, 'Cutzamala');
+      assert.equal(body.user.currentLocation, 'Altamirano');
+      assert.equal(body.user.occupation, 'Narrador');
+      assert.equal(body.user.points, 90);
+      assert.equal(body.user.level, 2);
       assert.equal(body.user.followersCount, 1);
       assert.equal(body.user.followingCount, 1);
     });
@@ -66,7 +91,7 @@ test('perfil propio devuelve datos privados y métricas', async () => {
   }
 });
 
-test('perfil propio acepta solo name, bio y avatar', async () => {
+test('perfil propio acepta datos editables del perfil', async () => {
   const userId = '507f1f77bcf86cd799439011';
   let receivedUpdate;
   const restore = replaceMethod(User, 'findByIdAndUpdate', async (id, update) => {
@@ -95,14 +120,22 @@ test('perfil propio acepta solo name, bio y avatar', async () => {
         },
         body: JSON.stringify({
           name: ' Nuevo nombre ',
+          username: ' @Nuevo.Guache ',
+          origin: ' Cutzamala ',
+          currentLocation: ' Altamirano ',
           bio: ' Nueva bio ',
+          occupation: ' Cronista ',
           avatar: 'https://example.com/avatar.jpg',
         }),
       }));
       assert.equal(result.response.status, 200);
       assert.deepEqual(receivedUpdate, {
         name: 'Nuevo nombre',
+        username: 'nuevo.guache',
+        origin: 'Cutzamala',
+        currentLocation: 'Altamirano',
         bio: 'Nueva bio',
+        occupation: 'Cronista',
         avatar: 'https://example.com/avatar.jpg',
       });
     });
@@ -261,5 +294,70 @@ test('seguir y dejar de seguir actualiza ambos usuarios', async () => {
   } finally {
     restoreUpdate();
     restoreFind();
+  }
+});
+
+test('usuario autenticado puede eliminar su propia cuenta', async () => {
+  const userId = '507f1f77bcf86cd799439011';
+  const communityId = '507f191e810c19729de860ea';
+  const calls = [];
+  const user = serializedUser(userId, { _id: { toString: () => userId } });
+  const ownedPost = {
+    community: { toString: () => communityId },
+  };
+
+  const restore = [
+    replaceMethod(User, 'findById', async () => user),
+    replaceMethod(Post, 'find', () => ({
+      select: async () => [ownedPost],
+    })),
+    replaceMethod(Post, 'deleteMany', async (filter) => {
+      calls.push(['post.deleteMany', filter]);
+    }),
+    replaceMethod(Post, 'updateMany', async (filter, update) => {
+      calls.push(['post.updateMany', filter, update]);
+    }),
+    replaceMethod(CommunityDirectoryEntry, 'deleteMany', async (filter) => {
+      calls.push(['directory.deleteMany', filter]);
+    }),
+    replaceMethod(Community, 'updateMany', async (filter, update) => {
+      calls.push(['community.updateMany', filter, update]);
+    }),
+    replaceMethod(Community, 'updateOne', async (filter, update) => {
+      calls.push(['community.updateOne', filter, update]);
+    }),
+    replaceMethod(CommunitySuggestion, 'updateMany', async (filter, update) => {
+      calls.push(['suggestion.updateMany', filter, update]);
+    }),
+    replaceMethod(CommunitySuggestion, 'deleteMany', async (filter) => {
+      calls.push(['suggestion.deleteMany', filter]);
+    }),
+    replaceMethod(User, 'updateMany', async (filter, update) => {
+      calls.push(['user.updateMany', filter, update]);
+    }),
+    replaceMethod(User, 'deleteOne', async (filter) => {
+      calls.push(['user.deleteOne', filter]);
+    }),
+    ...[Personaje, Historia, Leyenda].map((Model) => (
+      replaceMethod(Model, 'find', async () => [])
+    )),
+  ];
+
+  try {
+    await withServer(testApp(), async (baseUrl) => {
+      const { response, body } = await readJson(await fetch(`${baseUrl}/users/me`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token(userId)}` },
+      }));
+
+      assert.equal(response.status, 200);
+      assert.equal(body.message, 'Cuenta eliminada correctamente');
+      assert.ok(calls.some(([name]) => name === 'post.deleteMany'));
+      assert.ok(calls.some(([name]) => name === 'user.deleteOne'));
+      assert.ok(calls.some(([name]) => name === 'community.updateMany'));
+      assert.ok(calls.some(([name]) => name === 'directory.deleteMany'));
+    });
+  } finally {
+    restore.reverse().forEach((restoreMethod) => restoreMethod());
   }
 });

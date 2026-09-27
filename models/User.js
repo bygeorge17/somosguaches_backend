@@ -22,10 +22,36 @@ const userSchema = new mongoose.Schema({
     maxlength: 50,
     trim: true,
   },
+  username: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    maxlength: 30,
+    match: [/^[a-z0-9_.-]*$/, 'El username solo puede usar letras, numeros, puntos, guiones o guion bajo'],
+    default: '',
+  },
+  origin: {
+    type: String,
+    trim: true,
+    maxlength: 120,
+    default: '',
+  },
+  currentLocation: {
+    type: String,
+    trim: true,
+    maxlength: 120,
+    default: '',
+  },
   bio: {
     type: String,
     trim: true,
     maxlength: 160,
+    default: '',
+  },
+  occupation: {
+    type: String,
+    trim: true,
+    maxlength: 120,
     default: '',
   },
   avatar: {
@@ -33,6 +59,16 @@ const userSchema = new mongoose.Schema({
     trim: true,
     maxlength: 2048,
     default: '',
+  },
+  points: {
+    type: Number,
+    min: 0,
+    default: 0,
+  },
+  level: {
+    type: Number,
+    min: 1,
+    default: 1,
   },
   followers: [{
     type: mongoose.Schema.Types.ObjectId,

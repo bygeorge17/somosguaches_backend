@@ -8,6 +8,7 @@ const models = {
 };
 const User = require('../models/User');
 const Post = require('../models/Post');
+const CommunitySuggestion = require('../models/CommunitySuggestion');
 const router = express.Router();
 
 router.get('/overview', adminAuthorization, async (_req, res, next) => {
@@ -46,6 +47,32 @@ router.get('/overview', adminAuthorization, async (_req, res, next) => {
         createdAt: record.createdAt,
       }))).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5),
     });
+  } catch (error) { next(error); }
+});
+
+router.get('/community-suggestions', adminAuthorization, async (_req, res, next) => {
+  try {
+    const suggestions = await CommunitySuggestion.find()
+      .populate('suggestedBy', 'name email')
+      .sort({ lastSuggestedAt: -1 })
+      .lean();
+
+    res.set('Cache-Control', 'no-store');
+    res.json(suggestions.map((suggestion) => ({
+      id: String(suggestion._id),
+      name: suggestion.name,
+      location: suggestion.location || '',
+      description: suggestion.description || '',
+      suggestionsCount: suggestion.suggestedBy?.length || 0,
+      suggestedBy: (suggestion.suggestedBy || []).map((user) => ({
+        id: String(user._id),
+        name: user.name,
+        email: user.email,
+      })),
+      lastSuggestedAt: suggestion.lastSuggestedAt,
+      createdAt: suggestion.createdAt,
+      updatedAt: suggestion.updatedAt,
+    })));
   } catch (error) { next(error); }
 });
 

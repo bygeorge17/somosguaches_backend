@@ -58,7 +58,16 @@ const officialAccountCreate = z.object({
 
 const profileUpdate = strictUpdate({
   name: requiredString(50, 'El nombre es obligatorio').optional(),
+  username: optionalString(30).refine(
+    (value) => value === undefined
+      || value === ''
+      || /^@?[a-zA-Z0-9_.-]{3,30}$/.test(value),
+    { message: 'El username debe tener 3 a 30 caracteres validos' },
+  ),
+  origin: optionalString(120),
+  currentLocation: optionalString(120),
   bio: optionalString(160),
+  occupation: optionalString(120),
   avatar: urlOrPath.optional(),
 });
 
@@ -77,6 +86,27 @@ const communityUpdate = strictUpdate({
     Object.entries(communityShape).map(([key, schema]) => [key, schema.optional()]),
   ),
 });
+
+const directoryEntryShape = {
+  name: requiredString(120, 'El nombre es obligatorio'),
+  category: requiredString(80, 'La categoria es obligatoria'),
+  description: requiredString(1000, 'La descripcion es obligatoria'),
+  contact: optionalString(160),
+  location: optionalString(120),
+  imageUrl: urlOrPath.optional(),
+};
+const directoryEntryCreate = z.object(directoryEntryShape).strict();
+const directoryEntryUpdate = strictUpdate(
+  Object.fromEntries(
+    Object.entries(directoryEntryShape).map(([key, schema]) => [key, schema.optional()]),
+  ),
+);
+
+const communitySuggestionCreate = z.object({
+  name: requiredString(80, 'El nombre es obligatorio'),
+  location: optionalString(120),
+  description: optionalString(1000),
+}).strict();
 
 const personajeShape = {
   name: requiredString(100, 'El nombre es obligatorio'),
@@ -215,7 +245,10 @@ module.exports = {
   officialAccountCreate,
   comment,
   communityCreate,
+  communitySuggestionCreate,
   communityUpdate,
+  directoryEntryCreate,
+  directoryEntryUpdate,
   eventoCreate,
   eventoUpdate,
   historiaCreate,
