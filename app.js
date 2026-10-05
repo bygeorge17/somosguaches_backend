@@ -27,7 +27,12 @@ var app = express();
 
 const cors = require('cors');
 app.use(cors({
-  exposedHeaders: ['X-Has-More', 'X-Next-Page'],
+  origin: [
+    'https://somosguaches.com',
+    'https://www.somosguaches.com'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 
