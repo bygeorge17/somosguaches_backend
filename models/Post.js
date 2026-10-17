@@ -82,6 +82,8 @@ const postSchema = new mongoose.Schema({
     trim: true,
     maxlength: 40,
   }],
+  moderationStatus: { type: String, enum: ['visible', 'hidden', 'removed'], default: 'visible', index: true },
+  reportedAt: { type: Date, default: null },
   comments: [commentSchema],
   ratings: [ratingSchema],
 }, {

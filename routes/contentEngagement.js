@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require('../config/env');
 const { validateBody } = require('../middleware/validateBody');
 const { comment, rating } = require('../validation/schemas');
+const { awardPoints } = require('../services/pointsService');
 
 function resourceId(value) {
   return value?._id?.toString() || value?.toString() || '';
@@ -61,6 +62,15 @@ function registerContentEngagement(router, { Model, mapResource, label }) {
       if (!resource) return res.status(404).json({ error: `${label} no encontrado` });
       resource.comments.push({ author: req.user.id, text: req.body.text });
       await resource.save();
+      const commentId = resource.comments[resource.comments.length - 1]?._id?.toString();
+      void awardPoints({
+        userId: req.user.id,
+        action: 'comment',
+        sourceType: label,
+        sourceId: commentId || resource._id.toString(),
+        idempotencyKey: `comment:${commentId || `${label}:${resource._id}:${req.user.id}`}`,
+        reason: 'Comentario publicado',
+      }).catch(() => {});
       await populateComments(resource);
       res.json(mapResource(resource, req.user.id, true));
     } catch (error) {
@@ -78,6 +88,16 @@ function registerContentEngagement(router, { Model, mapResource, label }) {
       if (current) current.stars = req.body.stars;
       else resource.ratings.push({ user: req.user.id, stars: req.body.stars });
       await resource.save();
+      if (!current) {
+        void awardPoints({
+          userId: req.user.id,
+          action: 'rating',
+          sourceType: label,
+          sourceId: resource._id.toString(),
+          idempotencyKey: `rating:${label}:${resource._id}:${req.user.id}`,
+          reason: 'Contenido valorado',
+        }).catch(() => {});
+      }
       await populateComments(resource);
       res.json(mapResource(resource, req.user.id, true));
     } catch (error) {

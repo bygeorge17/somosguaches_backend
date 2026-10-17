@@ -20,6 +20,8 @@ var leyendasRouter = require('./routes/leyendas');
 var eventosRouter = require('./routes/eventos');
 var noticiasLocalesRouter = require('./routes/noticiasLocales');
 var mediaRouter = require('./routes/media');
+var notificationsRouter = require('./routes/notifications');
+var contentSuggestionsRouter = require('./routes/contentSuggestions');
 
 mongoose.connect(MONGODB_URI)
 
@@ -53,6 +55,9 @@ app.use('/leyendas', leyendasRouter);
 app.use('/eventos', eventosRouter);
 app.use('/noticias/locales', noticiasLocalesRouter);
 app.use('/media', mediaRouter);
+app.use('/notifications', notificationsRouter);
+app.use('/content-suggestions', contentSuggestionsRouter);
+app.use('/post-reports', require('./routes/postReports'));
 app.use('/admin', require('./routes/admin'));
 
 app.use(notFoundHandler);

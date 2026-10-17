@@ -9,6 +9,7 @@ const { validateBody } = require('../middleware/validateBody');
 const Community = require('../models/Community');
 const CommunityDirectoryEntry = require('../models/CommunityDirectoryEntry');
 const CommunitySuggestion = require('../models/CommunitySuggestion');
+const { awardPoints } = require('../services/pointsService');
 const { JWT_SECRET } = require('../config/env');
 const {
   communityCreate,
@@ -481,6 +482,14 @@ router.post('/:id/join', authMiddleware, async (req, res) => {
     if (!alreadyMember) {
       community.members.push(req.user.id);
       await community.save();
+      void awardPoints({
+        userId: req.user.id,
+        action: 'communityJoin',
+        sourceType: 'community',
+        sourceId: community._id.toString(),
+        idempotencyKey: `community-join:${community._id}:${req.user.id}`,
+        reason: 'Ingreso a una comunidad',
+      }).catch(() => {});
     }
 
     res.json(mapCommunity(community, req.user.id));

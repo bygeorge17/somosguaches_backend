@@ -108,6 +108,14 @@ const communitySuggestionCreate = z.object({
   description: optionalString(1000),
 }).strict();
 
+const contentSuggestionCreate = z.object({
+  kind: z.enum(['personaje', 'historia', 'leyenda']),
+  title: requiredString(140, 'El nombre o titulo es obligatorio'),
+  secondary: optionalString(120),
+  location: optionalString(120),
+  description: optionalString(1200),
+}).strict();
+
 const personajeShape = {
   name: requiredString(100, 'El nombre es obligatorio'),
   aliasOrRole: optionalString(120),
@@ -239,6 +247,10 @@ const comment = z.object({
 }).strict();
 const reaction = z.object({ reaction: z.enum(['like', 'dislike']) }).strict();
 const rating = z.object({ stars: z.number().int().min(1).max(5) }).strict();
+const postReport = z.object({
+  reason: z.enum(['harassment', 'hate', 'sexual', 'violence', 'spam', 'misinformation', 'other']),
+  details: z.string().trim().max(1000).optional().default(''),
+}).strict();
 
 module.exports = {
   adminCreateUser,
@@ -246,6 +258,7 @@ module.exports = {
   comment,
   communityCreate,
   communitySuggestionCreate,
+  contentSuggestionCreate,
   communityUpdate,
   directoryEntryCreate,
   directoryEntryUpdate,
@@ -262,6 +275,7 @@ module.exports = {
   personajeUpdate,
   postCreate,
   postUpdate,
+  postReport,
   profileUpdate,
   rating,
   reaction,

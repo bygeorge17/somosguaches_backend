@@ -43,7 +43,7 @@ router.post('/login', validateBody(login), async (req, res) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email });
-    if (!user || user.isActive === false) {
+    if (!user || user.isActive === false || (user.moderation?.suspendedUntil && user.moderation.suspendedUntil > new Date())) {
       return res.status(400).json({ error: 'Email o contraseña incorrectos' });
     }
 

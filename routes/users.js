@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const multer = require('multer');
 const path = require('path');
 const authMiddleware = require('../middleware/auth');
@@ -10,11 +11,16 @@ const { validateBody } = require('../middleware/validateBody');
 const Community = require('../models/Community');
 const CommunityDirectoryEntry = require('../models/CommunityDirectoryEntry');
 const CommunitySuggestion = require('../models/CommunitySuggestion');
+const ContentSuggestion = require('../models/ContentSuggestion');
 const Historia = require('../models/Historia');
 const Leyenda = require('../models/Leyenda');
 const Personaje = require('../models/Personaje');
 const Post = require('../models/Post');
 const User = require('../models/User');
+const PointTransaction = require('../models/PointTransaction');
+const Notification = require('../models/Notification');
+const { createNotification } = require('../services/notificationService');
+const { awardPoints, pointsSummary } = require('../services/pointsService');
 const { JWT_SECRET } = require('../config/env');
 const { resourceId, serializeUser } = require('../utils/user');
 const {
@@ -142,12 +148,37 @@ async function updateOwnProfile(userId, body, res) {
   );
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
+  const profileIsComplete = [user.name, user.username, user.bio]
+    .every((value) => String(value || '').trim().length > 0);
+  if (profileIsComplete) {
+    void awardPoints({
+      userId,
+      action: 'profileComplete',
+      sourceType: 'user',
+      sourceId: userId,
+      idempotencyKey: `profile-complete:${userId}`,
+      reason: 'Perfil completado',
+    }).catch(() => {});
+  }
+
   return res.json({ user: serializeUser(user, { includePrivate: true }) });
 }
 
 function removeUploadedFile(file) {
   if (!file?.path) return Promise.resolve();
   return fs.promises.unlink(file.path).catch(() => {});
+}
+
+function removeStoredUpload(value) {
+  const uploadPrefixes = [AVATAR_URL_PREFIX, '/uploads/posts/'];
+  if (typeof value !== 'string') return Promise.resolve();
+  const prefix = uploadPrefixes.find((item) => value.startsWith(item));
+  if (!prefix) return Promise.resolve();
+  const filename = path.basename(value);
+  const directory = prefix === AVATAR_URL_PREFIX
+    ? AVATAR_UPLOAD_DIR
+    : path.join(__dirname, '..', 'public', 'uploads', 'posts');
+  return fs.promises.unlink(path.join(directory, filename)).catch(() => {});
 }
 
 async function refreshEngagementCounters(Model, userId) {
@@ -177,7 +208,7 @@ async function refreshEngagementCounters(Model, userId) {
 
 async function removeUserAccount(user) {
   const userId = user._id.toString();
-  const ownedPosts = await Post.find({ author: user._id }).select('community');
+  const ownedPosts = await Post.find({ author: user._id }).select('community mediaUrl');
   const postsByCommunity = ownedPosts.reduce((counts, post) => {
     const communityId = resourceId(post.community);
     if (!communityId) return counts;
@@ -203,7 +234,22 @@ async function removeUserAccount(user) {
     CommunityDirectoryEntry.deleteMany({ owner: user._id }),
     Community.updateMany({}, { $pull: { members: user._id } }),
     CommunitySuggestion.updateMany({}, { $pull: { suggestedBy: user._id } }),
+    mongoose.connection.readyState === 1
+      ? ContentSuggestion.updateMany({}, { $pull: { suggestedBy: user._id } })
+      : Promise.resolve(),
     User.updateMany({}, { $pull: { followers: user._id, following: user._id } }),
+    mongoose.connection.readyState === 1
+      ? Notification.deleteMany({ recipient: user._id })
+      : Promise.resolve(),
+    mongoose.connection.readyState === 1
+      ? Notification.updateMany(
+          { actor: user._id },
+          { $set: { actor: null } },
+        )
+      : Promise.resolve(),
+    mongoose.connection.readyState === 1
+      ? PointTransaction.deleteMany({ user: user._id })
+      : Promise.resolve(),
     refreshEngagementCounters(Personaje, userId),
     refreshEngagementCounters(Historia, userId),
     refreshEngagementCounters(Leyenda, userId),
@@ -218,7 +264,14 @@ async function removeUserAccount(user) {
     )),
   );
   await CommunitySuggestion.deleteMany({ suggestedBy: { $size: 0 } });
+  if (mongoose.connection.readyState === 1) {
+    await ContentSuggestion.deleteMany({ suggestedBy: { $size: 0 } });
+  }
   await User.deleteOne({ _id: user._id });
+  await Promise.all([
+    removeStoredUpload(user.avatar),
+    ...ownedPosts.map((post) => removeStoredUpload(post.mediaUrl)),
+  ]);
 }
 
 router.post('/', adminAuthorization, validateBody(adminCreateUser), async (req, res) => {
@@ -306,6 +359,48 @@ router.get('/me', authMiddleware, async (req, res) => {
     res.json({ user: serializeUser(user, { includePrivate: true }) });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+});
+
+router.get('/me/points', authMiddleware, async (req, res) => {
+  try {
+    const summary = await pointsSummary(req.user.id);
+    if (!summary) return res.status(404).json({ error: 'Usuario no encontrado' });
+    const transactions = await PointTransaction.find({ user: req.user.id })
+      .sort({ createdAt: -1 }).limit(30).lean();
+    return res.json({ ...summary, transactions });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/me/push-token', authMiddleware, async (req, res) => {
+  try {
+    const token = String(req.body.token || '').trim();
+    const platform = String(req.body.platform || '').trim().toLowerCase();
+    if (!token || !['android', 'ios'].includes(platform)) {
+      return res.status(400).json({ error: 'Token y plataforma son obligatorios' });
+    }
+    await User.findByIdAndUpdate(req.user.id, {
+      $pull: { pushTokens: { token } },
+    });
+    await User.findByIdAndUpdate(req.user.id, {
+      $push: { pushTokens: { token, platform, updatedAt: new Date() } },
+    });
+    return res.status(201).json({ message: 'Token push registrado' });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+});
+
+router.delete('/me/push-token', authMiddleware, async (req, res) => {
+  try {
+    const token = String(req.body.token || '').trim();
+    if (!token) return res.status(400).json({ error: 'El token es obligatorio' });
+    await User.updateOne({ _id: req.user.id }, { $pull: { pushTokens: { token } } });
+    return res.json({ message: 'Token push eliminado' });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
 });
 
@@ -425,6 +520,17 @@ router.post('/:id/follow', authMiddleware, async (req, res) => {
         { $addToSet: { followers: currentUser._id } },
       ),
     ]);
+
+    void createNotification({
+      recipient: targetUser._id,
+      actor: currentUser._id,
+      type: 'follow',
+      title: 'Nuevo seguidor',
+      body: `${currentUser.name || 'Alguien'} comenzó a seguirte.`,
+      resourceType: 'user',
+      resourceId: currentUser._id.toString(),
+      data: { route: '/profile', userId: currentUser._id.toString() },
+    }).catch(() => {});
 
     const updatedUser = await User.findById(targetUser._id);
     res.json({

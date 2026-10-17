@@ -11,6 +11,7 @@ const { validateBody } = require('../middleware/validateBody');
 const Community = require('../models/Community');
 const Post = require('../models/Post');
 const { JWT_SECRET } = require('../config/env');
+const { awardPoints } = require('../services/pointsService');
 const {
   comment: commentBody,
   postCreate,
@@ -437,6 +438,7 @@ router.get('/', async (req, res) => {
     }
 
     const filter = buildPostFilters(req.query);
+    if (!currentUserIsAdmin) filter.moderationStatus = 'visible';
     const order = readPostOrder(req.query);
     const { page, limit, skip } = readPostPagination(req.query);
     const dateSort = order === 'oldest' ? 1 : -1;
@@ -583,6 +585,15 @@ router.post('/', authMiddleware, validateBody(postCreate), async (req, res) => {
     });
     await post.save();
     await adjustCommunityPostsCount(normalizedCommunityId, 1);
+
+    void awardPoints({
+      userId: req.user.id,
+      action: type === 'image' ? 'postImage' : type === 'video' ? 'postVideo' : 'postText',
+      sourceType: 'post',
+      sourceId: post._id.toString(),
+      idempotencyKey: `post:${post._id}`,
+      reason: 'Publicación creada',
+    }).catch(() => {});
 
     const populatedPost = await findPost(post._id);
     res.status(201).json(mapPost(populatedPost, req.user.id, req.user.isAdmin));

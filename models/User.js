@@ -97,7 +97,20 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['personal', 'official', 'automated'],
     default: 'personal',
-  }
+  },
+  pushTokens: [{
+    token: { type: String, required: true, trim: true, maxlength: 4096 },
+    platform: { type: String, enum: ['android', 'ios'], required: true },
+    updatedAt: { type: Date, default: Date.now },
+  }],
+  notificationPreferences: {
+    push: { type: Boolean, default: true },
+  },
+  moderation: {
+    falseReportCount: { type: Number, min: 0, default: 0 },
+    suspendedUntil: { type: Date, default: null },
+    permanentlyBanned: { type: Boolean, default: false },
+  },
 }, {
   timestamps: true // agrega createdAt y updatedAt automáticamente
 });
