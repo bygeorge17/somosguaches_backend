@@ -31,7 +31,9 @@ const cors = require('cors');
 app.use(cors({
   origin: [
     'https://somosguaches.com',
-    'https://www.somosguaches.com'
+    'https://www.somosguaches.com',
+    'https://admin.somosguaches.com',
+
   ],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
